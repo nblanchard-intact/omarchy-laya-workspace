@@ -182,7 +182,9 @@ Item {
       service.pluginDir + "/lib/classify.py",
       "--purpose", service.classifyPurpose,
       "--max-apps", String(service.maxApps),
-      "--threshold", String(service.appThreshold)
+      "--threshold", String(service.appThreshold),
+      "--launch",
+      "--move-existing"
     ]
     classifyProc.running = true
   }

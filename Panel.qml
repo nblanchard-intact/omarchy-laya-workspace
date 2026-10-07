@@ -221,6 +221,15 @@ Item {
     if (submitProc.running) return
     var t = String(text || "").trim()
     if (t === "") return
+    var home = Quickshell.env("HOME")
+    submitProc.command = [
+      home + "/.local/share/laya/.venv/bin/python",
+      home + "/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/classify.py",
+      "--purpose", t,
+      "--max-apps", "3",
+      "--launch",
+      "--move-existing"
+    ]
     root.busy = true
     root.statusText = ""
     busyGuard.restart()
