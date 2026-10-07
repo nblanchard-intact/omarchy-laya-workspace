@@ -136,11 +136,19 @@ def bridge_or_none(stem: str, shipped: dict) -> str | None:
     if not meta:
         return None
     bridge = shipped.get("bridge", {})
-    for token in meta["cats"].split(";"):
-        token = token.strip()
-        if token in bridge:
-            return bridge[token]
-    return None
+    tokens = [t.strip() for t in meta["cats"].split(";") if t.strip()]
+    # Resolve ALL tokens, then pick by bridge priority (specific tokens like
+    # Development/IDE outrank generic ones like Office/Utility for files that
+    # carry both, e.g. VS Code's "TextEditor;Development;IDE").
+    mapped = [bridge[t] for t in tokens if t in bridge]
+    if not mapped:
+        return None
+    priority = ["coding", "image_editing", "video", "audio", "gaming",
+                "communication", "writing", "media", "browsing", "utilities"]
+    for cat in priority:
+        if cat in mapped:
+            return cat
+    return mapped[0]
 
 
 def bucket_for(stem: str, shipped: dict, learned: dict) -> str:
