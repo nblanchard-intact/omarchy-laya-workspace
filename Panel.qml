@@ -6,61 +6,60 @@ import qs.Commons
 import qs.Ui
 
 // The Laya Workspace input dialog: a screen-centered window. Opened by the
-// SUPER+CTRL+L hotkey (Service.qml IPC), dismissed with Esc or an outside
+// SUPER+CTRL+L hotkey via Service.qml IPC, dismissed with Esc or an outside
 // click. Type a purpose, press Enter: the service classifies it and launches
 // the matching apps into a new special workspace.
 //
-// One PanelWindow per screen (Variants on Quickshell.screens), like the
-// Omarchy notification service - nested Loaders do not attach layer
-// surfaces reliably. The root Item is what the shell's panel loader hosts;
-// `opened` is what its isPluginOpen() reads.
+// A plain PanelWindow - not a bar-anchored KeyboardPanel: the dialog is
+// hotkey-driven and centers on the screen regardless of any bar widget.
 Item {
   id: root
 
-  // Injected by the shell's panel loader (used for shell.run/summon/hide).
+  // Injected by the shell panel loader.
   property var shell: null
 
-  // ------------------------------------------------------------ lifecycle
-
   function open() {
-    root.visible = true
-    root.statusText = ""
+    windowLoader.active = true
     loadPurposes()
-    Qt.callLater(function () { inputField.forceActiveFocus() })
+    focusTimer.restart()
   }
 
-  function close() { root.visible = false }
-
-  function toggle() { root.visible ? close() : open() }
-
-  // The shell's isPluginOpen() reads this.
-  readonly property bool opened: root.visible
-
-  onVisibleChanged: {
-    if (!visible) inputField.text = ""
+  function close() {
+    windowLoader.active = false
   }
 
-  // ------------------------------------------------------------ state
+  function toggle() {
+    windowLoader.active ? close() : open()
+  }
+
+  // The shell isPluginOpen reads this.
+  readonly property bool opened: windowLoader.active
 
   property bool busy: false
-  property string statusText: ""
+  property string statusText: ''
+  property var purposes: []
 
-  // ------------------------------------------------------------ window
+  Loader {
+    id: windowLoader
+    active: false
 
-  Variants {
-    model: Quickshell.screens
-
-    PanelWindow {
+    sourceComponent: PanelWindow {
       id: window
-      required property var modelData
-      screen: modelData
-      visible: root.visible
       color: "transparent"
       WlrLayershell.namespace: "laya-workspace"
       WlrLayershell.layer: WlrLayer.Overlay
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
       exclusionMode: ExclusionMode.Ignore
       anchors { top: true; bottom: true; left: true; right: true }
+
+      function focusInput() {
+        inputField.forceActiveFocus()
+        return inputField.activeFocus
+      }
+
+      function submitInput() {
+        root.doSubmit(inputField.text)
+      }
 
       onVisibleChanged: {
         if (!visible) inputField.text = ""
@@ -88,18 +87,36 @@ Item {
           width: parent.width - Style.space(24) * 2
           spacing: Style.spacing.sm
 
-          PanelHero {
+          Item {
             width: parent.width
-            title: "Laya Workspace"
-            meta: root.busy ? "classifying..." : "type a purpose, press Enter"
+            height: Math.max(titleText.implicitHeight, statusText2.implicitHeight)
+
+            Text {
+              id: titleText
+              anchors.left: parent.left
+              anchors.verticalCenter: parent.verticalCenter
+              text: "Laya Workspace"
+              color: Color.popups.text
+              font.pixelSize: Style.font.title
+              font.bold: true
+            }
+
+            Text {
+              id: statusText2
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              text: root.busy ? "classifying..." : "ready"
+              color: root.busy ? Color.urgent : Color.muted
+              font.pixelSize: Style.font.bodySmall
+            }
           }
 
           TextField {
             id: inputField
             width: parent.width
-            placeholderText: "What is this workspace for? (e.g. Image Editing)"
+            placeholderText: "What is this workspace for? e.g. Image Editing"
             enabled: !root.busy
-            onAccepted: root.submit()
+            onAccepted: window.submitInput()
           }
 
           Text {
@@ -111,7 +128,15 @@ Item {
             elide: Text.ElideRight
           }
 
-          Item { width: 1; height: Style.space(2) }
+          PanelSeparator {}
+
+          Text {
+            width: parent.width
+            text: "Remembered workspaces"
+            color: Color.muted
+            font.pixelSize: Style.font.bodySmall
+            font.bold: true
+          }
 
           Repeater {
             model: root.purposes
@@ -129,17 +154,18 @@ Item {
                 text: (modelData.purpose || modelData) + "  -  " + (modelData.apps || []).length + " apps"
                 color: Color.popups.text
                 font.pixelSize: Style.font.bodySmall
+                elide: Text.ElideRight
               }
 
               MouseArea {
                 anchors.fill: parent
                 onClicked: {
                   var d = modelData
-                  var home = Quickshell.env("HOME")
+                  var home = Quickshell.env('HOME')
                   relaunchProc.command = [
-                    home + "/.local/share/laya/.venv/bin/python",
-                    home + "/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/classify.py",
-                    "--purpose", d.purpose, "--launch", "--move-existing"
+                    home + '/.local/share/laya/.venv/bin/python',
+                    home + '/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/classify.py',
+                    '--purpose', d.purpose, '--launch', '--move-existing'
                   ]
                   relaunchProc.running = true
                   root.close()
@@ -150,15 +176,26 @@ Item {
 
           Item { width: 1; height: Style.space(2) }
 
+          PanelSeparator {}
+
+          Text {
+            width: parent.width
+            text: "App classifications"
+            color: Color.muted
+            font.pixelSize: Style.font.bodySmall
+            font.bold: true
+          }
+
           Row {
+            width: parent.width
             spacing: Style.spacing.sm
 
             Button {
-              text: "Scan and classify apps"
+              text: "Scan apps"
               onClicked: {
                 scanProc.command = [
-                  Quickshell.env("HOME") + "/.local/share/laya/.venv/bin/python",
-                  Quickshell.env("HOME") + "/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/scan-apps.py"
+                  Quickshell.env('HOME') + '/.local/share/laya/.venv/bin/python',
+                  Quickshell.env('HOME') + '/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/scan-apps.py'
                 ]
                 scanProc.running = true
                 root.busy = true
@@ -169,22 +206,22 @@ Item {
               text: "Edit classifications"
               onClicked: {
                 editProc.command = [
-                  Quickshell.env("HOME") + "/.local/share/laya/.venv/bin/python",
-                  Quickshell.env("HOME") + "/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/open-editor.py"
+                  Quickshell.env('HOME') + '/.local/share/laya/.venv/bin/python',
+                  Quickshell.env('HOME') + '/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/open-editor.py'
                 ]
                 editProc.running = true
               }
             }
 
             Button {
-              text: "Clear remembered purposes"
+              text: "Clear cache"
               onClicked: {
                 clearProc.command = [
-                  Quickshell.env("HOME") + "/.local/share/laya/.venv/bin/python",
-                  Quickshell.env("HOME") + "/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/clear-cache.py"
+                  Quickshell.env('HOME') + '/.local/share/laya/.venv/bin/python',
+                  Quickshell.env('HOME') + '/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/clear-cache.py'
                 ]
                 clearProc.running = true
-                root.statusText = "remembered purposes cleared"
+                root.statusText = 'remembered purposes cleared'
                 loadPurposes()
               }
             }
@@ -192,13 +229,9 @@ Item {
         }
 
         Keys.onEscapePressed: root.close()
-        Keys.onReturnPressed: root.submit()
-        Keys.onEnterPressed: root.submit()
       }
     }
   }
-
-  // ------------------------------------------------------------ state procs
 
   Process {
     id: scanProc
@@ -228,14 +261,17 @@ Item {
     stdout: StdioCollector { waitForEnd: true }
   }
 
-  property var purposes: []
+  Process {
+    id: relaunchProc
+    stdout: StdioCollector { waitForEnd: true }
+  }
 
   function loadPurposes() {
-    var home = Quickshell.env("HOME")
+    var home = Quickshell.env('HOME')
     if (!home) return
     purposesProc.command = [
-      home + "/.local/share/laya/.venv/bin/python",
-      home + "/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/list-purposes.py"
+      home + '/.local/share/laya/.venv/bin/python',
+      home + '/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/list-purposes.py'
     ]
     purposesProc.running = true
   }
@@ -246,35 +282,40 @@ Item {
     onExited: function (code) {
       if (code !== 0) return
       try {
-        root.purposes = JSON.parse(purposesOut.text.trim() || "[]")
+        root.purposes = JSON.parse(purposesOut.text.trim() || '[]')
       } catch (e) {}
     }
   }
 
-  Process {
-    id: relaunchProc
-    stdout: StdioCollector { waitForEnd: true }
-  }
-
-  // ------------------------------------------------------------ logic
-
-  function submit() {
+  function doSubmit(text) {
     if (submitProc.running) return
-    var text = inputField.text.trim()
-    if (text === "") return
-    var home = Quickshell.env("HOME")
+    var t = String(text || '').trim()
+    if (t === '') return
+    var home = Quickshell.env('HOME')
     submitProc.command = [
-      home + "/.local/share/laya/.venv/bin/python",
-      home + "/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/classify.py",
-      "--purpose", text,
-      "--max-apps", "3",
-      "--launch",
-      "--move-existing"
+      home + '/.local/share/laya/.venv/bin/python',
+      home + '/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/classify.py',
+      '--purpose', t,
+      '--max-apps', '3',
+      '--launch',
+      '--move-existing'
     ]
     root.busy = true
-    root.statusText = ""
+    root.statusText = ''
     busyGuard.restart()
     submitProc.running = true
+  }
+
+  Timer {
+    id: focusTimer
+    interval: 120
+    repeat: true
+    running: windowLoader.active
+    onTriggered: {
+      if (windowLoader.item && typeof windowLoader.item.focusInput === "function") {
+        if (windowLoader.item.focusInput()) focusTimer.stop()
+      }
+    }
   }
 
   Timer {
