@@ -23,9 +23,7 @@ Item {
     root.statusText = ""
     windowLoader.active = true
     loadPurposes()
-    Qt.callLater(function () {
-      if (windowLoader.item) windowLoader.item.forceActiveFocus()
-    })
+    focusTimer.restart()
   }
 
   function close() {
