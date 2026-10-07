@@ -50,6 +50,17 @@ Item {
     sourceComponent: PanelWindow {
       id: window
       color: "transparent"
+
+      // Returns true once the field has keyboard focus; the loader's timer
+      // retries until then (the layer surface maps asynchronously).
+      function focusInput() {
+        inputField.forceActiveFocus()
+        return inputField.activeFocus
+      }
+
+      function submitInput() {
+        root.doSubmit(inputField.text)
+      }
       WlrLayershell.namespace: "laya-workspace"
       WlrLayershell.layer: WlrLayer.Overlay
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
@@ -95,7 +106,7 @@ Item {
             width: parent.width
             placeholderText: "What is this workspace for? (e.g. Image Editing)"
             enabled: !root.busy
-            onAccepted: root.submit()
+            onAccepted: window.submitInput()
           }
 
           Text {
@@ -163,19 +174,58 @@ Item {
         }
 
         Keys.onEscapePressed: root.close()
-        Keys.onReturnPressed: root.submit()
-        Keys.onEnterPressed: root.submit()
       }
     }
   }
 
   // ------------------------------------------------------------ logic
 
+  // The layer surface maps asynchronously: focus the field once the window
+  // content is live, retrying a few times.
+  Timer {
+    id: focusTimer
+    interval: 120
+    repeat: true
+    running: windowLoader.active
+    onTriggered: {
+      // The item exposes focusInput() (declared in the window component);
+      // it no-ops until the surface has mapped and the field exists.
+      if (windowLoader.item && typeof windowLoader.item.focusInput === "function") {
+        if (windowLoader.item.focusInput()) focusTimer.stop()
+      }
+    }
+  }
+
+  // A wedged classification must not leave the field disabled forever.
+  Timer {
+    id: busyGuard
+    interval: 45000
+    onTriggered: {
+      if (root.busy && !classifyProcRunning()) {
+        root.busy = false
+        root.statusText = "classification timed out - is the laya server up?"
+      }
+    }
+  }
+
+  function classifyProcRunning() {
+    return submitProc.running
+  }
+
   function submit() {
-    var text = inputField.text.trim()
-    if (text === "" || root.busy) return
+    if (submitProc.running) return
+    if (windowLoader.item && typeof windowLoader.item.submitInput === "function")
+      return windowLoader.item.submitInput()
+  }
+
+  // Called from the window component: has access to the field.
+  function doSubmit(text) {
+    if (submitProc.running) return
+    var t = String(text || "").trim()
+    if (t === "") return
     root.busy = true
     root.statusText = ""
+    busyGuard.restart()
     submitProc.running = true
   }
 
