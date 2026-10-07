@@ -197,7 +197,11 @@ def main() -> int:
         for desk_id in real_ids:
             hlp.register_workspace_rule(slug, desk_id.removesuffix(".desktop"), "special:" + special)
         for desk_id in real_ids:
-            subprocess.run(["gtk-launch", desk_id], capture_output=True, timeout=15)
+            # Fire-and-forget: gtk-launch blocks on the startup-notification
+            # protocol for already-running single-instance apps, which would
+            # hang the whole classification.
+            subprocess.Popen(["gtk-launch", desk_id],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if args.move_existing:
             for desk_id in real_ids:
                 hlp.move_windows(desk_id.removesuffix(".desktop"), "special:" + special)
