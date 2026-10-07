@@ -1,141 +1,151 @@
 {
-  "_comment": "Buckets desktop ids into laya stage-1 categories. Keys are lowercase desktop-id stems (without .desktop). 'descriptions' carries human-written criteria text used as laya option criteria; unknown ids fall back to the 'utilities' bucket and are always included in stage 2.",
-  "categories": {
-    "coding": {
-      "description": "writing, reviewing, or testing code; software development",
-      "apps": [
-        "com.microsoft.vscode",
-        "nvim",
-        "cmake-gui",
-        "uuctl",
-        "foot",
-        "footserver",
-        "footclient",
-        "dev.tensaku.tensaku",
-        "btop",
-        "docker",
-        "limine-snapper-restore"
-      ]
-    },
-    "writing": {
-      "description": "writing documents, notes, or knowledge bases",
-      "apps": [
-        "libreoffice-writer",
-        "libreoffice-calc",
-        "libreoffice-impress",
-        "libreoffice-draw",
-        "libreoffice-math",
-        "libreoffice-base",
-        "libreoffice-startcenter",
-        "obsidian",
-        "omawrite",
-        "com.github.xournalpp.xournalpp",
-        "org.gnome.evince"
-      ]
-    },
-    "communication": {
-      "description": "chat, email, video calls, and social apps",
-      "apps": [
-        "discord",
-        "basecamp",
-        "hey",
-        "zoom",
-        "whatsapp",
-        "x",
-        "google-messages",
-        "google-contacts",
-        "chrome-ompifgpmddkgmclendfeacglnodjjndh-default"
-      ]
-    },
-    "image_editing": {
-      "description": "editing, creating, or organizing images and photos",
-      "apps": [
-        "gimp",
-        "krita",
-        "inkscape",
-        "darktable",
-        "com.github.pintaproject.pinta",
-        "imv",
-        "google-photos",
-        "blender"
-      ]
-    },
-    "video": {
-      "description": "editing, recording, or watching video",
-      "apps": [
-        "org.kde.kdenlive",
-        "com.obsproject.studio",
-        "mpv",
-        "google-youtube",
-        "com.moonlight-stream.moonlight",
-        "qv4l2",
-        "qvidcap"
-      ]
-    },
-    "audio": {
-      "description": "music production, or listening to music and podcasts",
-      "apps": [
-        "spotify",
-        "audacity",
-        "mpv"
-      ]
-    },
-    "gaming": {
-      "description": "playing games or game streaming",
-      "apps": [
-        "steam",
-        "com.moonlight-stream.moonlight"
-      ]
-    },
-    "browsing": {
-      "description": "general web browsing and research",
-      "apps": [
-        "google-chrome",
-        "chromium",
-        "firefox",
-        "google-maps"
-      ]
-    },
-    "media": {
-      "description": "consuming media: videos, streams, reading feeds",
-      "apps": [
-        "mpv",
-        "google-youtube"
-      ]
-    },
-    "utilities": {
-      "description": "system tools and utilities",
-      "apps": [
-        "org.gnome.diskutility",
-        "system-config-printer",
-        "cups",
-        "disk-usage",
-        "localsend",
-        "tailscale",
-        "flux",
-        "lasso",
-        "omacut",
-        "fcitx5-configtool",
-        "avahi-discover",
-        "bssh",
-        "bvnc",
-        "lstopo",
-        "1password",
-        "voxtype-configure",
-        "aether",
-        "omacalc"
-      ]
-    }
+  "_comment": "Shipped app taxonomy for Laya Workspace. 'bridge' maps freedesktop Categories= tokens to laya categories (checked in order, first match wins). 'apps' pre-populates the standard Omarchy app set; lib/auto-bucket.py extends 'apps' via the bridge for newly installed apps, and the learned overrides file (~/.local/state/laya-workspace/app-buckets.json) merges on top. Ship the taxonomy empty of machine-specific entries: everything not listed lands in 'utilities' until learned or bridged.",
+  "taxonomy": {
+    "coding": "writing, reviewing, or testing code; software development",
+    "writing": "writing documents, notes, or knowledge bases",
+    "communication": "chat, email, video calls, and social apps",
+    "image_editing": "editing, creating, or organizing images and photos",
+    "video": "editing, recording, or watching video",
+    "audio": "music production, or listening to music and podcasts",
+    "gaming": "playing games or game streaming",
+    "browsing": "general web browsing and research",
+    "media": "consuming media: videos, streams, reading feeds",
+    "utilities": "system tools, settings, and utilities"
   },
-  "aliases": {
-    "google-photos": [
-      "chrome-faolnafnngnfdaknnbpnkhgohbobgegn-default"
+  "bridge": {
+    "Development": "coding",
+    "TextEditor": "writing",
+    "WordProcessor": "writing",
+    "Office": "writing",
+    "Spreadsheet": "writing",
+    "Presentation": "writing",
+    "Database": "writing",
+    "InstantMessaging": "communication",
+    "Email": "communication",
+    "Telephony": "communication",
+    "Graphics": "image_editing",
+    "2DGraphics": "image_editing",
+    "RasterGraphics": "image_editing",
+    "VectorGraphics": "image_editing",
+    "Scanning": "image_editing",
+    "Video": "video",
+    "AudioVideoEditing": "video",
+    "Recorder": "video",
+    "TV": "video",
+    "Audio": "audio",
+    "Music": "audio",
+    "Game": "gaming",
+    "ActionGame": "gaming",
+    "Network": "browsing",
+    "WebBrowser": "browsing",
+    "Player": "media",
+    "Viewer": "media",
+    "Feed": "media",
+    "Utility": "utilities",
+    "System": "utilities",
+    "Settings": "utilities",
+    "FileManager": "utilities",
+    "Monitor": "utilities",
+    "Printing": "utilities",
+    "Security": "utilities"
+  },
+  "apps": {
+    "coding": [
+      "com.microsoft.vscode",
+      "nvim",
+      "cmake-gui",
+      "uuctl",
+      "foot",
+      "foot-server",
+      "footclient",
+      "dev.tensaku.tensaku",
+      "btop",
+      "docker",
+      "limine-snapper-restore"
     ],
-    "google-youtube": [
-      "youtube"
+    "writing": [
+      "libreoffice-writer",
+      "libreoffice-calc",
+      "libreoffice-impress",
+      "libreoffice-draw",
+      "libreoffice-math",
+      "libreoffice-base",
+      "libreoffice-startcenter",
+      "obsidian",
+      "omawrite",
+      "com.github.xournalpp.xournalpp",
+      "org.gnome.evince"
     ],
-    "google-messages": [
+    "communication": [
+      "discord",
+      "basecamp",
+      "hey",
+      "zoom",
+      "whatsapp",
+      "x",
+      "google-messages",
+      "google-contacts",
       "chrome-ompifgpmddkgmclendfeacglnodjjndh-default"
+    ],
+    "image_editing": [
+      "gimp",
+      "krita",
+      "inkscape",
+      "darktable",
+      "com.github.pintaproject.pinta",
+      "imv",
+      "google-photos",
+      "blender",
+      "lasso"
+    ],
+    "video": [
+      "org.kde.kdenlive",
+      "com.obsproject.studio",
+      "mpv",
+      "google-youtube",
+      "com.moonlight-stream.moonlight",
+      "qv4l2",
+      "qvidcap",
+      "omacut"
+    ],
+    "audio": [
+      "spotify",
+      "audacity",
+      "mpv",
+      "cliamp"
+    ],
+    "gaming": [
+      "steam",
+      "com.moonlight-stream.moonlight"
+    ],
+    "browsing": [
+      "google-chrome",
+      "chromium",
+      "firefox",
+      "google-maps"
+    ],
+    "media": [
+      "mpv",
+      "google-youtube"
+    ],
+    "utilities": [
+      "org.gnome.diskutility",
+      "system-config-printer",
+      "cups",
+      "disk-usage",
+      "localsend",
+      "tailscale",
+      "flux",
+      "omacalc",
+      "fcitx5-configtool",
+      "avahi-discover",
+      "bssh",
+      "bvnc",
+      "lstopo",
+      "1password",
+      "voxtype-configure",
+      "aether",
+      "org.gnome.nautilus"
     ]
   }
 }

@@ -72,50 +72,7 @@ def laya(state: str, questions: dict, timeout: int = 20) -> dict:
         sys.exit(3)
 
 
-def normalize(stem: str) -> str:
-    return stem.lower().removesuffix(".desktop")
-
-
-def installed_apps() -> dict[str, str]:
-    """desktop-id (normalized, no .desktop) -> display name, skipping NoDisplay."""
-    out: dict[str, str] = {}
-    for d in DESKTOP_DIRS:
-        for f in sorted(glob.glob(os.path.join(d, "*.desktop"))):
-            stem = normalize(os.path.basename(f))
-            if stem in out:
-                continue
-            display = stem
-            nodisplay = False
-            try:
-                with open(f, errors="replace") as fh:
-                    for line in fh:
-                        if line.startswith("NoDisplay=true") or line.startswith("Hidden=true"):
-                            nodisplay = True
-                            break
-                        if line.startswith("Name="):
-                            display = line.split("=", 1)[1].strip()
-            except Exception:
-                pass
-            if not nodisplay:
-                out[stem] = display
-    return out
-
-
-def load_buckets() -> dict:
-    with open(BUCKETS_PATH) as f:
-        return json.load(f)
-
-
-def bucket_for(stem: str, buckets: dict) -> str:
-    b = buckets["categories"]
-    for cat, info in b.items():
-        if stem in info.get("apps", []):
-            return cat
-    for cat, alias_list in buckets.get("aliases", {}).items():
-        if stem in alias_list:
-            return cat
-    return "utilities"
-
+import buckets as bk
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -132,9 +89,40 @@ def main() -> int:
         print("empty purpose", file=sys.stderr)
         return 3
 
-    buckets = load_buckets()
-    installed = installed_apps()
-    cats = {k: v["description"] for k, v in buckets["categories"].items()}
+    shipped = bk.load_shipped()
+    learned = bk.load_learned()
+    installed = bk.installed_apps()
+    cats = dict(shipped["taxonomy"])
+
+    # Auto-bucket: any installed app with no bucket at all gets classified
+    # here (from its desktop metadata) and persisted to the learned map, so
+    # newly installed apps are covered on the next run without re-asking.
+    unknowns = [stem for stem in installed
+                if bk.resolve(stem, shipped, learned) is None
+                and stem not in bk.SAME_APP_AS]
+    for stem in unknowns:
+        meta = installed[stem]
+        text = f"App: {meta['name']}"
+        if meta["generic"]:
+            text += f"\nType: {meta['generic']}"
+        if meta["comment"]:
+            text += f"\nDescription: {meta['comment']}"
+        if meta["cats"]:
+            text += f"\nDesktop categories: {meta['cats'].replace(';', ', ')}"
+        r = laya(text, {"category": {
+            "type": "choice",
+            "instructions": "Which category does this application belong to?",
+            "criteria": shipped["taxonomy"],
+        }})
+        learned.setdefault("apps", {})
+        learned["apps"].setdefault(r["answers"]["category"]["choice"], [])
+        learned["apps"][r["answers"]["category"]["choice"]].append(stem)
+        learned.setdefault("descriptions", {})
+        learned["descriptions"][stem] = f"the {meta['name']} application"
+    bk.prune(learned, installed)
+    if unknowns:
+        learned["apps"] = {k: v for k, v in learned["apps"].items() if v}
+        bk.save_learned(learned)
 
     # ---- 1. purpose -> category
     # Direct match: a purpose that literally names a category ("writing",
@@ -170,7 +158,7 @@ def main() -> int:
         cat_prob = 0.55
     curated: list[str] = []
     for stem, _display in sorted(installed.items()):
-        if bucket_for(stem, buckets) == category and stem not in SAME_APP_AS:
+        if bk.bucket_for(stem, shipped, learned) == category and stem not in bk.SAME_APP_AS:
             curated.append(stem)
 
     chosen = curated[: args.max_apps]
@@ -181,7 +169,7 @@ def main() -> int:
     if len(chosen) < args.max_apps:
         rest = {stem: display for stem, display in sorted(installed.items())
                 if stem not in chosen and stem not in SAME_APP_AS
-                and bucket_for(stem, buckets) != category}
+                and bk.bucket_for(stem, shipped, learned) != category}
         if rest:
             state = (f"{purpose}. Multiple applications are typically open "
                      "side by side in such a workspace.")
@@ -207,7 +195,7 @@ def main() -> int:
     # ---- map normalized stems back to real desktop ids
     real_ids: list[str] = []
     for stem in chosen:
-        match = next((s for s in installed if normalize(s) == stem), stem)
+        match = next((s for s in installed if bk.normalize(s) == stem), stem)
         real_ids.append(match + ".desktop")
 
     slug = "".join(c if c.isalnum() else "-" for c in purpose.lower()).strip("-")[:32] or "workspace"
