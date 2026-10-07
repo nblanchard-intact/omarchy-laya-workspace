@@ -137,16 +137,37 @@ def main() -> int:
     cats = {k: v["description"] for k, v in buckets["categories"].items()}
 
     # ---- 1. purpose -> category
-    r1 = laya(purpose, {"category": {
-        "type": "choice",
-        "instructions": "What is this computer workspace for?",
-        "criteria": cats,
-    }})
-    cat_answer = r1["answers"]["category"]
-    category = cat_answer["choice"]
-    cat_prob = float(cat_answer["probabilities"][category])
+    # Direct match: a purpose that literally names a category ("writing",
+    # "image editing") is authoritative and needs no model call.
+    category = None
+    cat_prob = 1.0
+    purpose_lower = purpose.lower()
+    words = purpose_lower.split()
+    # Only a purpose that IS the category name ("writing") takes the fast
+    # path; a descriptive sentence containing the word ("social media and
+    # messaging") must go to laya, or "media" would hijack it.
+    if len(words) <= 2:
+        for name in sorted(cats, key=len, reverse=True):
+            if name in purpose_lower or name in words:
+                category = name
+                break
+    if category is None:
+        r1 = laya(purpose, {"category": {
+            "type": "choice",
+            "instructions": "What is this computer workspace for?",
+            "criteria": cats,
+        }})
+        cat_answer = r1["answers"]["category"]
+        category = cat_answer["choice"]
+        cat_prob = float(cat_answer["probabilities"][category])
 
     # ---- 2. curated apps for that category (deterministic)
+    # Below this category confidence the pick is a coin flip; a wrong
+    # category's apps (Chrome + calculator for "writing") are worse than a
+    # conservative utilities workspace the user can adjust.
+    if cat_prob < 0.55:
+        category = "utilities"
+        cat_prob = 0.55
     curated: list[str] = []
     for stem, _display in sorted(installed.items()):
         if bucket_for(stem, buckets) == category and stem not in SAME_APP_AS:
