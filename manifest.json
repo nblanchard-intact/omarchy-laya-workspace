@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "cheapseatsecon.laya-workspace",
+  "name": "Laya Workspace",
+  "version": "0.1.0",
+  "author": "cheapseatsecon",
+  "description": "Press SUPER+CTRL+L, type what a workspace is for (\"Image Editing\"), and Laya picks the best-fitting installed apps to launch into a new named workspace.",
+  "kinds": ["service", "panel"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml",
+    "panel": "Panel.qml"
+  }
+}

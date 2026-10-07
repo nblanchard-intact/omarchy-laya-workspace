@@ -1,0 +1,142 @@
+{
+  "_comment": "Buckets desktop ids into laya stage-1 categories. Keys are lowercase desktop-id stems (without .desktop). 'descriptions' carries human-written criteria text used as laya option criteria; unknown ids fall back to the 'utilities' bucket and are always included in stage 2.",
+  "categories": {
+    "coding": {
+      "description": "writing, reviewing, or testing code; software development",
+      "apps": [
+        "com.microsoft.vscode",
+        "nvim",
+        "cmake-gui",
+        "uuctl",
+        "foot",
+        "footserver",
+        "footclient",
+        "dev.tensaku.tensaku",
+        "btop",
+        "docker",
+        "limine-snapper-restore"
+      ]
+    },
+    "writing": {
+      "description": "writing documents, notes, or knowledge bases",
+      "apps": [
+        "libreoffice-writer",
+        "libreoffice-calc",
+        "libreoffice-impress",
+        "libreoffice-draw",
+        "libreoffice-math",
+        "libreoffice-base",
+        "libreoffice-startcenter",
+        "obsidian",
+        "omawrite",
+        "com.github.xournalpp.xournalpp",
+        "org.gnome.evince"
+      ]
+    },
+    "communication": {
+      "description": "chat, email, video calls, and social apps",
+      "apps": [
+        "discord",
+        "basecamp",
+        "hey",
+        "zoom",
+        "whatsapp",
+        "x",
+        "google-messages",
+        "google-contacts",
+        "chrome-ompifgpmddkgmclendfeacglnodjjndh-default"
+      ]
+    },
+    "image_editing": {
+      "description": "editing, creating, or organizing images and photos",
+      "apps": [
+        "gimp",
+        "krita",
+        "inkscape",
+        "darktable",
+        "com.github.pintaproject.pinta",
+        "imv",
+        "google-photos",
+        "blender"
+      ]
+    },
+    "video": {
+      "description": "editing, recording, or watching video",
+      "apps": [
+        "org.kde.kdenlive",
+        "com.obsproject.studio",
+        "mpv",
+        "google-youtube",
+        "com.moonlight-stream.moonlight",
+        "qv4l2",
+        "qvidcap"
+      ]
+    },
+    "audio": {
+      "description": "music production, or listening to music and podcasts",
+      "apps": [
+        "spotify",
+        "audacity",
+        "mpv"
+      ]
+    },
+    "gaming": {
+      "description": "playing games or game streaming",
+      "apps": [
+        "steam",
+        "com.moonlight-stream.moonlight"
+      ]
+    },
+    "browsing": {
+      "description": "general web browsing and research",
+      "apps": [
+        "google-chrome",
+        "chromium",
+        "firefox",
+        "google-maps",
+        "omacalc"
+      ]
+    },
+    "media": {
+      "description": "consuming media: videos, streams, reading feeds",
+      "apps": [
+        "mpv",
+        "google-youtube"
+      ]
+    },
+    "utilities": {
+      "description": "system tools and utilities",
+      "apps": [
+        "org.gnome.diskutility",
+        "system-config-printer",
+        "cups",
+        "disk-usage",
+        "localsend",
+        "tailscale",
+        "flux",
+        "lasso",
+        "omacut",
+        "fcitx5-configtool",
+        "avahi-discover",
+        "bssh",
+        "bvnc",
+        "lstopo",
+        "1password",
+        "voxtype-configure",
+        "aether",
+        "omacalc"
+      ]
+    }
+  },
+  "aliases": {
+    "google-photos": [
+      "chrome-faolnafnngnfdaknnbpnkhgohbobgegn-default"
+    ],
+    "google-youtube": [
+      "youtube"
+    ],
+    "google-messages": [
+      "chrome-ompifgpmddkgmclendfeacglnodjjndh-default"
+    ]
+  }
+}
