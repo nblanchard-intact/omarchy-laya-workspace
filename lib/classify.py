@@ -183,8 +183,20 @@ def main() -> int:
         if bk.bucket_for(stem, shipped, learned) == category and stem not in bk.SAME_APP_AS:
             curated.append(stem)
 
-    chosen = curated[: args.max_apps]
-    apps_meta = {stem: "curated" for stem in chosen}
+    # Rank the category's apps against the purpose via rank-apps.py
+    # (one noul question per candidate, single laya call, sharp results).
+    ranker = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rank-apps.py")
+    r_rank = subprocess.run(
+        [sys.executable, ranker, purpose, category, str(args.max_apps)],
+        capture_output=True, text=True, timeout=60)
+    if r_rank.returncode != 0:
+        print("ranking failed: " + r_rank.stderr[:200], file=sys.stderr)
+        chosen = curated[: args.max_apps]
+        apps_meta = {stem: "curated" for stem in chosen}
+    else:
+        ranked = json.loads(r_rank.stdout)
+        chosen = ranked["apps"]
+        apps_meta = {stem.replace(".desktop", ""): "ranked" for stem in chosen}
 
     # ---- 3. discovery: fill remaining slots with one ranked noul pass over
     # non-curated installed apps (their own display name as the question).
@@ -218,8 +230,8 @@ def main() -> int:
     real_ids: list[str] = []
     for stem in chosen:
         match = next((s for s in installed if bk.normalize(s) == stem), stem)
-        real_ids.append(match + ".desktop")
-
+        base = match.removesuffix(".desktop")
+        real_ids.append(base + ".desktop")
     slug = "".join(c if c.isalnum() else "-" for c in purpose.lower()).strip("-")[:32] or "workspace"
     special = "laya-" + slug
     workspace_display = purpose if len(purpose) <= 32 else purpose[:29].rstrip() + "…"
