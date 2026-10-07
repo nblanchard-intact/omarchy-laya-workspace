@@ -1,0 +1,11 @@
+{
+  "coding": ["code", "coding", "develop", "development", "program", "programming", "debug", "debugging", "refactor", "software"],
+  "image_editing": ["image", "photo", "picture", "design", "graphic", "retouch", "draw", "drawing"],
+  "writing": ["write", "writing", "document", "note", "notes", "documentation", "docs", "essay"],
+  "communication": ["chat", "message", "messaging", "email", "mail", "call", "calls", "meeting", "social"],
+  "video": ["video", "movie", "film", "recording", "stream"],
+  "audio": ["music", "audio", "podcast", "song"],
+  "gaming": ["game", "gaming", "steam", "play games"],
+  "browsing": ["browse", "browsing", "web", "internet", "research"],
+  "media": ["watch", "watching", "youtube"]
+}

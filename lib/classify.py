@@ -73,6 +73,7 @@ def laya(state: str, questions: dict, timeout: int = 20) -> dict:
 
 
 import buckets as bk
+import keywords as kwmod
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -132,18 +133,43 @@ def main() -> int:
     # Only a purpose that IS the category name ("writing") takes the fast
     # path; a descriptive sentence containing the word ("social media and
     # messaging") must go to laya, or "media" would hijack it.
-    if len(words) <= 2:
+    kw_cat, kw_prob = kwmod.match(purpose_lower)
+    if kw_cat is not None:
+        category = kw_cat
+        cat_prob = kw_prob
+    if kw_cat is None and len(words) <= 2:
         for name in sorted(cats, key=len, reverse=True):
             if name in purpose_lower or name in words:
                 category = name
                 break
     if category is None:
-        r1 = laya(purpose, {"category": {
+        # Hierarchical classification: laya's choice head is sharp with few
+        # options and dilutes at 10 (measured 0.33-0.61 flat). Round 1 picks
+        # a broad group (3 options), round 2 the category within it.
+        groups = {
+            "create": "creating or editing content: code, documents, images, video, audio",
+            "consume": "consuming or watching: media, feeds, games",
+            "connect": "communicating: chat, email, calls, social apps",
+        }
+        group_members = {
+            "create": ["coding", "image_editing", "writing", "video", "audio"],
+            "consume": ["media", "gaming", "browsing"],
+            "connect": ["communication", "utilities"],
+        }
+        r1 = laya(purpose, {"group": {
+            "type": "choice",
+            "instructions": "What does this workspace involve most?",
+            "criteria": groups,
+        }})
+        group = r1["answers"]["group"]["choice"]
+        members = group_members.get(group, ["utilities"])
+        member_cats = {name: cats[name] for name in members if name in cats}
+        r2 = laya(purpose, {"category": {
             "type": "choice",
             "instructions": "What is this computer workspace for?",
-            "criteria": cats,
+            "criteria": member_cats,
         }})
-        cat_answer = r1["answers"]["category"]
+        cat_answer = r2["answers"]["category"]
         category = cat_answer["choice"]
         cat_prob = float(cat_answer["probabilities"][category])
 
@@ -151,9 +177,7 @@ def main() -> int:
     # Below this category confidence the pick is a coin flip; a wrong
     # category's apps (Chrome + calculator for "writing") are worse than a
     # conservative utilities workspace the user can adjust.
-    if cat_prob < 0.55:
-        category = "utilities"
-        cat_prob = 0.55
+
     curated: list[str] = []
     for stem, _display in sorted(installed.items()):
         if bk.bucket_for(stem, shipped, learned) == category and stem not in bk.SAME_APP_AS:
