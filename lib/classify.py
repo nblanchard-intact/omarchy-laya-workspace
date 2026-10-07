@@ -114,9 +114,7 @@ def main() -> int:
             "instructions": "Which category does this application belong to?",
             "criteria": shipped["taxonomy"],
         }})
-        learned.setdefault("apps", {})
-        learned["apps"].setdefault(r["answers"]["category"]["choice"], [])
-        learned["apps"][r["answers"]["category"]["choice"]].append(stem)
+        bk.learn(learned, stem, r["answers"]["category"]["choice"])
         learned.setdefault("descriptions", {})
         learned["descriptions"][stem] = f"the {meta['name']} application"
     bk.prune(learned, installed)

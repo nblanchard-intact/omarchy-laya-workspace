@@ -13,7 +13,7 @@ import buckets as bk
 import classify as cls
 
 HOME = os.path.expanduser("~")
-CONFIDENCE_FLOOR = 0.6
+CONFIDENCE_FLOOR = 0.75
 APP_WORD = "appli" + "cation"
 
 
@@ -85,10 +85,7 @@ def main() -> int:
             skipped += 1
             continue
 
-        learned.setdefault("apps", {})
-        learned["apps"].setdefault(category, [])
-        if stem not in learned["apps"][category]:
-            learned["apps"][category].append(stem)
+        bk.learn(learned, stem, category)
         learned.setdefault("descriptions", {})
         learned["descriptions"][stem] = "the " + meta["name"] + " " + APP_WORD
         laya_count += 1

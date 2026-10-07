@@ -91,6 +91,17 @@ def save_learned(learned: dict) -> None:
     os.replace(tmp, LEARNED_PATH)
 
 
+def learn(learned: dict, stem: str, category: str) -> None:
+    """Assign a stem to a category, removing it from all others (move semantics)."""
+    learned.setdefault("apps", {})
+    for cat, ids in learned["apps"].items():
+        if cat != category and stem in ids:
+            ids.remove(stem)
+    learned["apps"].setdefault(category, [])
+    if stem not in learned["apps"][category]:
+        learned["apps"][category].append(stem)
+
+
 def prune(learned: dict, installed: dict) -> int:
     """Drop learned entries whose app is no longer installed. Returns pruned."""
     pruned = 0
