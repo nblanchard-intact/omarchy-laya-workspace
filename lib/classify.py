@@ -26,13 +26,22 @@ import argparse
 import glob
 import json
 import os
+import subprocess
 import sys
 import urllib.request
+
+# Deterministic latency: the desktop GPU is shared and fills up; laya's GPU
+# path under memory pressure retries then falls back to CPU, making the
+# classification time unpredictable. Pin to CPU up front.
+os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
 HOME = os.path.expanduser("~")
 LAYA_URL = os.environ.get("LAYA_URL", "http://127.0.0.1:8000/v1/systemone")
 HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
 BUCKETS_PATH = os.path.join(HERE, "app-categories.json")
+import hyprland as hlp
 
 DESKTOP_DIRS = [
     "/usr/share/applications",
@@ -113,6 +122,8 @@ def main() -> int:
     ap.add_argument("--purpose", required=True)
     ap.add_argument("--max-apps", type=int, default=3)
     ap.add_argument("--threshold", type=float, default=0.5)
+    ap.add_argument("--launch", action="store_true")
+    ap.add_argument("--move-existing", action="store_true")
     ap.add_argument("--discovery-threshold", type=float, default=0.65)
     args = ap.parse_args()
 
@@ -178,13 +189,26 @@ def main() -> int:
         match = next((s for s in installed if normalize(s) == stem), stem)
         real_ids.append(match + ".desktop")
 
+    slug = "".join(c if c.isalnum() else "-" for c in purpose.lower()).strip("-")[:32] or "workspace"
+    special = "laya-" + slug
+    workspace_display = purpose if len(purpose) <= 32 else purpose[:29].rstrip() + "…"
+
+    if args.launch:
+        for desk_id in real_ids:
+            hlp.register_workspace_rule(slug, desk_id.removesuffix(".desktop"), "special:" + special)
+        for desk_id in real_ids:
+            subprocess.run(["gtk-launch", desk_id], capture_output=True, timeout=15)
+        if args.move_existing:
+            for desk_id in real_ids:
+                hlp.move_windows(desk_id.removesuffix(".desktop"), "special:" + special)
+
     print(json.dumps({
         "purpose": purpose,
         "category": category,
         "category_prob": round(cat_prob, 4),
         "apps": real_ids,
         "app_meta": apps_meta,
-        "workspace": purpose if len(purpose) <= 32 else purpose[:29].rstrip() + "…",
+        "workspace": "special:" + special if args.launch else workspace_display,
     }))
     return 0
 

@@ -1,211 +1,234 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
 
-// The Laya Workspace input panel: a text box anchored to the bar. Type what
-// the workspace is for and press Enter — the service classifies the purpose,
-// creates a named Hyprland workspace, and launches the best-fitting apps.
+// The Laya Workspace input dialog: a screen-centered window. Opened by the
+// SUPER+CTRL+L hotkey (Service.qml IPC), dismissed with Esc or an outside
+// click. Type a purpose, press Enter: the service classifies it and launches
+// the matching apps into a new special workspace.
 //
-// BarWidget contract: the shell routes open/close/toggle here through the
-// service (Service.qml's IpcHandler), and the panel exposes open/close/
-// toggle/opened itself.
-Panel {
+// This is a plain PanelWindow rather than a bar-anchored KeyboardPanel: the
+// dialog is hotkey-driven and must center on the screen regardless of any
+// bar widget. The root Item is what the shell's panel loader hosts; the
+// window inside activates on open().
+Item {
   id: root
-  moduleName: "laya-workspace"
-  ipcTarget: "laya-workspace"
-  manageIpc: false
 
-  property var service: null
-  property var anchorItem: null
-  property var hostWidget: null
-  readonly property var barIdentity: hostWidget || root
-
-  property var lookedUp: null
-  property int lookups: 0
-  readonly property var svc: service || lookedUp
-
-  function findService() {
-    if (!service && !lookedUp && shell && typeof shell.serviceFor === "function")
-      lookedUp = shell.serviceFor("laya-workspace")
-  }
+  // ------------------------------------------------------------ lifecycle
 
   function open() {
-    refresh()
-    root.controller.show()
-    Qt.callLater(function () { inputField.forceActiveFocus() })
+    root.statusText = ""
+    windowLoader.active = true
+    loadPurposes()
+    Qt.callLater(function () {
+      if (windowLoader.item) windowLoader.item.forceActiveFocus()
+    })
   }
-  function close() { root.controller.hide() }
-  function toggle() { root.opened ? close() : open() }
 
-  // ---------------------------------------------------------------- state
+  function close() {
+    windowLoader.active = false
+  }
+
+  function toggle() {
+    windowLoader.active ? close() : open()
+  }
+
+  // ------------------------------------------------------------ state
 
   property bool busy: false
-  property string purpose: ""
   property string statusText: ""
-  property var purposes: []   // remembered: [{purpose, apps, workspace, last_used}]
 
-  function refresh() {
-    findService()
-    loadPurposes()
-  }
+  // ------------------------------------------------------------ window
 
-  Process {
-    id: purposesLoadProc
-    stdout: StdioCollector { id: purposesOut; waitForEnd: true }
-    onExited: function (code) {
-      if (code !== 0) return
-      try { root.purposes = JSON.parse(purposesOut.text.trim() || "[]") } catch (e) {}
-    }
-  }
+  Loader {
+    id: windowLoader
+    active: false
 
-  function loadPurposes() {
-    var home = Quickshell.env("HOME")
-    if (!home) return
-    purposesLoadProc.command = [
-      home + "/.local/share/laya/.venv/bin/python",
-      home + "/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/list-purposes.py"
-    ]
-    purposesLoadProc.running = true
-  }
+    sourceComponent: PanelWindow {
+      id: window
+      color: "transparent"
+      WlrLayershell.namespace: "laya-workspace"
+      WlrLayershell.layer: WlrLayer.Overlay
+      WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+      exclusionMode: ExclusionMode.Ignore
+      anchors { top: true; bottom: true; left: true; right: true }
 
-  Timer {
-    interval: 500
-    repeat: true
-    running: panel.open && !root.svc && root.lookups < 20
-    onTriggered: { root.lookups++; root.findService() }
-  }
-
-  // ---------------------------------------------------------------- view
-
-  KeyboardPanel {
-    id: panel
-    anchorItem: root.anchorItem
-    owner: root.barIdentity
-    bar: root.bar
-    open: root.opened
-    centerOnBar: false
-    focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(Style.space(460))
-    contentHeight: panel.fittedContentHeight(contentColumn.implicitHeight)
-
-    PanelKeyCatcher {
-      id: keyCatcher
-      anchors.fill: parent
-
-      Keys.onEscapePressed: root.close()
-      Keys.onReturnPressed: root.submit()
-      Keys.onEnterPressed: root.submit()
-    }
-
-    Column {
-      id: contentColumn
-      width: parent.width
-      spacing: Style.spacing.sm
-
-      PanelHero {
-        width: parent.width
-        title: "Laya Workspace"
-        meta: {
-          if (!root.svc) return "service not loaded"
-          return root.busy ? "classifying…" : "type a purpose, press Enter"
-        }
+      onVisibleChanged: {
+        if (!visible) inputField.text = ""
       }
 
-      TextField {
-        id: inputField
-        width: parent.width
-        placeholderText: "What is this workspace for? (e.g. Image Editing)"
-        enabled: !root.busy
-        onAccepted: root.submit()
-
-        Component.onCompleted: {
-          // Reflect the service state each open.
-        }
+      // Click-outside dismissal: full-screen surface, click-through except
+      // the card, like the Omarchy notification popups.
+      MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.AllButtons
+        onClicked: root.close()
       }
 
-      Text {
-        width: parent.width
-        visible: root.statusText !== ""
-        text: root.statusText
-        color: Color.muted
-        font.pixelSize: Style.font.bodySmall
-        elide: Text.ElideRight
-      }
+      Rectangle {
+        id: card
+        anchors.centerIn: parent
+        width: 520
+        height: cardColumn.implicitHeight + Style.space(24) * 2
+        radius: Style.cornerRadius
+        color: Color.popups.background
+        border.width: 1
+        border.color: Color.popups.border
 
-      // Remembered purposes: one row each, click to relaunch.
-      Repeater {
-        model: root.purposes
+        Column {
+          id: cardColumn
+          anchors.centerIn: parent
+          width: parent.width - Style.space(24) * 2
+          spacing: Style.spacing.sm
 
-        delegate: Item {
-          id: purposeRow
-          required property var modelData
-          width: parent.width
-          height: purposeText.implicitHeight + Style.space(4)
-
-          Text {
-            id: purposeText
-            anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            text: (modelData.purpose || modelData) + "  ·  " + (modelData.apps || []).length + " apps"
-            color: Color.popups.text
-            font.pixelSize: Style.font.bodySmall
+          PanelHero {
+            width: parent.width
+            title: "Laya Workspace"
+            meta: root.busy ? "classifying..." : "type a purpose, press Enter"
           }
 
-          MouseArea {
-            anchors.fill: parent
+          TextField {
+            id: inputField
+            width: parent.width
+            placeholderText: "What is this workspace for? (e.g. Image Editing)"
+            enabled: !root.busy
+            onAccepted: root.submit()
+          }
+
+          Text {
+            width: parent.width
+            visible: root.statusText !== ""
+            text: root.statusText
+            color: Color.muted
+            font.pixelSize: Style.font.bodySmall
+            elide: Text.ElideRight
+          }
+
+          Item { width: 1; height: Style.space(2) }
+
+          Item { width: 1; height: Style.space(2) }
+
+          Repeater {
+            model: root.purposes
+
+            delegate: Item {
+              id: purposeRow
+              required property var modelData
+              width: parent.width
+              height: purposeText.implicitHeight + Style.space(4)
+
+              Text {
+                id: purposeText
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                text: (modelData.purpose || modelData) + "  -  " + (modelData.apps || []).length + " apps"
+                color: Color.popups.text
+                font.pixelSize: Style.font.bodySmall
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                onClicked: {
+                  var d = modelData
+                  var home = Quickshell.env("HOME")
+                  relaunchProc.command = [
+                    home + "/.local/share/laya/.venv/bin/python",
+                    home + "/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/classify.py",
+                    "--purpose", d.purpose, "--launch", "--move-existing"
+                  ]
+                  relaunchProc.running = true
+                  root.close()
+                }
+              }
+            }
+          }
+
+          Item { width: 1; height: Style.space(2) }
+
+          Button {
+            text: "Clear remembered purposes"
             onClicked: {
-              var d = modelData
-              if (root.svc && typeof root.svc.launchIntoWorkspace === "function")
-                root.svc.launchIntoWorkspace(d.purpose, d.workspace || root.svc.workspaceName(d.purpose), d.apps || [])
-              root.close()
+              clearProc.command = [
+                Quickshell.env("HOME") + "/.local/share/laya/.venv/bin/python",
+                Quickshell.env("HOME") + "/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/clear-cache.py"
+              ]
+              clearProc.running = true
+              root.statusText = "remembered purposes cleared"
+              loadPurposes()
             }
           }
         }
+
+        Keys.onEscapePressed: root.close()
+        Keys.onReturnPressed: root.submit()
+        Keys.onEnterPressed: root.submit()
       }
     }
   }
+
+  // ------------------------------------------------------------ logic
 
   function submit() {
     var text = inputField.text.trim()
     if (text === "" || root.busy) return
     root.busy = true
     root.statusText = ""
-    if (root.svc && typeof root.svc.requestClassify === "function") {
-      root.svc.requestClassify(text)
-      // The service closes the panel when the launch fires. Poll for busy
-      // falling back to false to re-enable the field on failure.
-      waitTimer.restart()
-    } else {
+    submitProc.running = true
+  }
+
+  Process {
+    id: relaunchProc
+    stdout: StdioCollector { waitForEnd: true }
+  }
+
+  Process {
+    id: clearProc
+    stdout: StdioCollector { waitForEnd: true }
+  }
+
+  property var purposes: []
+
+  function loadPurposes() {
+    var home = Quickshell.env("HOME")
+    if (!home) return
+    purposesProc.command = [
+      home + "/.local/share/laya/.venv/bin/python",
+      home + "/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/list-purposes.py"
+    ]
+    purposesProc.running = true
+  }
+
+  Process {
+    id: purposesProc
+    stdout: StdioCollector { id: purposesOut; waitForEnd: true }
+    onExited: function (code) {
+      if (code !== 0) return
+      try {
+        root.purposes = JSON.parse(purposesOut.text.trim() || "[]")
+      } catch (e) {}
+    }
+  }
+
+  // Classification + launch run through the plugin CLI; the result JSON
+  // drives the status line and the window closes itself on success.
+  Process {
+    id: submitProc
+    stdout: StdioCollector { id: submitOut; waitForEnd: true }
+    onExited: function (code) {
       root.busy = false
-      root.statusText = "service not loaded"
-    }
-  }
-
-  Timer {
-    id: waitTimer
-    interval: 15000
-    onTriggered: {
-      // Give up waiting: re-enable the box; the service failed silently.
-      if (root.busy) {
-        root.busy = false
-        root.statusText = "classification timed out — is the laya server up?"
+      if (code !== 0) {
+        root.statusText = "classification failed - is the laya server up?"
+        return
       }
-    }
-  }
-
-  // Keep busy state in sync with the service each time the panel is open.
-  Timer {
-    interval: 1000
-    repeat: true
-    running: panel.open
-    onTriggered: {
-      if (!root.svc) return
-      if ("classifyRunning" in root.svc) root.busy = !!root.svc.classifyRunning
-      if ("lastError" in root.svc && root.svc.lastError !== "") {
-        root.statusText = String(root.svc.lastError)
-        root.svc.lastError = ""
+      try {
+        var d = JSON.parse(submitOut.text.trim())
+        root.statusText = "launched " + (d.apps || []).length + " apps into " + d.workspace
+        Qt.callLater(function () { root.close() })
+      } catch (e) {
+        root.statusText = "classification failed"
       }
     }
   }

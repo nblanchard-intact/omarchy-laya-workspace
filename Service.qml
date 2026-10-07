@@ -159,6 +159,11 @@ Item {
       service.requestClassify(String(text || ""))
       return "ok"
     }
+
+    function clearCache(): string {
+      service.clearCache()
+      return "ok"
+    }
   }
 
   // ------------------------------------------------------------- classify
@@ -279,6 +284,19 @@ Item {
   }
   property var pendingLaunch: ({})
   // ------------------------------------------------------------- purposes
+
+  function clearCache() {
+    clearCacheProc.command = [
+      service.python,
+      service.pluginDir + "/lib/clear-cache.py"
+    ]
+    clearCacheProc.running = true
+  }
+
+  Process {
+    id: clearCacheProc
+    stdout: StdioCollector { waitForEnd: true }
+  }
 
   function savePurpose(d) {
     purposeProc.command = [
