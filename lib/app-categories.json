@@ -83,8 +83,8 @@
       "zoom",
       "whatsapp",
       "x",
-      "google-messages",
-      "google-contacts",
+      "google messages",
+      "google contacts",
       "chrome-ompifgpmddkgmclendfeacglnodjjndh-default"
     ],
     "image_editing": [
@@ -94,7 +94,7 @@
       "darktable",
       "com.github.pintaproject.pinta",
       "imv",
-      "google-photos",
+      "google photos",
       "blender",
       "lasso"
     ],
@@ -122,17 +122,20 @@
       "google-chrome",
       "chromium",
       "firefox",
-      "google-maps"
+      "google maps",
+      "chrome-faolnafnngnfdaknnbpnkhgohbobgegn-default"
     ],
     "media": [
       "mpv",
-      "google-youtube"
+      "google-youtube",
+      "youtube",
+      "google photos"
     ],
     "utilities": [
       "org.gnome.diskutility",
       "system-config-printer",
       "cups",
-      "disk-usage",
+      "disk usage",
       "localsend",
       "tailscale",
       "flux",
@@ -145,7 +148,8 @@
       "1password",
       "voxtype-configure",
       "aether",
-      "org.gnome.nautilus"
+      "org.gnome.nautilus",
+      "docker"
     ]
   }
 }

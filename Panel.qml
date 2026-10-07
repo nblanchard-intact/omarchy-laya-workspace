@@ -10,28 +10,34 @@ import qs.Ui
 // click. Type a purpose, press Enter: the service classifies it and launches
 // the matching apps into a new special workspace.
 //
-// This is a plain PanelWindow rather than a bar-anchored KeyboardPanel: the
-// dialog is hotkey-driven and must center on the screen regardless of any
-// bar widget. The root Item is what the shell's panel loader hosts; the
-// window inside activates on open().
+// One PanelWindow per screen (Variants on Quickshell.screens), like the
+// Omarchy notification service - nested Loaders do not attach layer
+// surfaces reliably. The root Item is what the shell's panel loader hosts;
+// `opened` is what its isPluginOpen() reads.
 Item {
   id: root
+
+  // Injected by the shell's panel loader (used for shell.run/summon/hide).
+  property var shell: null
 
   // ------------------------------------------------------------ lifecycle
 
   function open() {
+    root.visible = true
     root.statusText = ""
-    windowLoader.active = true
     loadPurposes()
-    focusTimer.restart()
+    Qt.callLater(function () { inputField.forceActiveFocus() })
   }
 
-  function close() {
-    windowLoader.active = false
-  }
+  function close() { root.visible = false }
 
-  function toggle() {
-    windowLoader.active ? close() : open()
+  function toggle() { root.visible ? close() : open() }
+
+  // The shell's isPluginOpen() reads this.
+  readonly property bool opened: root.visible
+
+  onVisibleChanged: {
+    if (!visible) inputField.text = ""
   }
 
   // ------------------------------------------------------------ state
@@ -41,24 +47,15 @@ Item {
 
   // ------------------------------------------------------------ window
 
-  Loader {
-    id: windowLoader
-    active: false
+  Variants {
+    model: Quickshell.screens
 
-    sourceComponent: PanelWindow {
+    PanelWindow {
       id: window
+      required property var modelData
+      screen: modelData
+      visible: root.visible
       color: "transparent"
-
-      // Returns true once the field has keyboard focus; the loader's timer
-      // retries until then (the layer surface maps asynchronously).
-      function focusInput() {
-        inputField.forceActiveFocus()
-        return inputField.activeFocus
-      }
-
-      function submitInput() {
-        root.doSubmit(inputField.text)
-      }
       WlrLayershell.namespace: "laya-workspace"
       WlrLayershell.layer: WlrLayer.Overlay
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
@@ -69,8 +66,6 @@ Item {
         if (!visible) inputField.text = ""
       }
 
-      // Click-outside dismissal: full-screen surface, click-through except
-      // the card, like the Omarchy notification popups.
       MouseArea {
         anchors.fill: parent
         acceptedButtons: Qt.AllButtons
@@ -104,7 +99,7 @@ Item {
             width: parent.width
             placeholderText: "What is this workspace for? (e.g. Image Editing)"
             enabled: !root.busy
-            onAccepted: window.submitInput()
+            onAccepted: root.submit()
           }
 
           Text {
@@ -115,8 +110,6 @@ Item {
             font.pixelSize: Style.font.bodySmall
             elide: Text.ElideRight
           }
-
-          Item { width: 1; height: Style.space(2) }
 
           Item { width: 1; height: Style.space(2) }
 
@@ -157,87 +150,76 @@ Item {
 
           Item { width: 1; height: Style.space(2) }
 
-          Button {
-            text: "Clear remembered purposes"
-            onClicked: {
-              clearProc.command = [
-                Quickshell.env("HOME") + "/.local/share/laya/.venv/bin/python",
-                Quickshell.env("HOME") + "/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/clear-cache.py"
-              ]
-              clearProc.running = true
-              root.statusText = "remembered purposes cleared"
-              loadPurposes()
+          Row {
+            spacing: Style.spacing.sm
+
+            Button {
+              text: "Scan and classify apps"
+              onClicked: {
+                scanProc.command = [
+                  Quickshell.env("HOME") + "/.local/share/laya/.venv/bin/python",
+                  Quickshell.env("HOME") + "/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/scan-apps.py"
+                ]
+                scanProc.running = true
+                root.busy = true
+              }
+            }
+
+            Button {
+              text: "Edit classifications"
+              onClicked: {
+                editProc.command = [
+                  Quickshell.env("HOME") + "/.local/share/laya/.venv/bin/python",
+                  Quickshell.env("HOME") + "/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/open-editor.py"
+                ]
+                editProc.running = true
+              }
+            }
+
+            Button {
+              text: "Clear remembered purposes"
+              onClicked: {
+                clearProc.command = [
+                  Quickshell.env("HOME") + "/.local/share/laya/.venv/bin/python",
+                  Quickshell.env("HOME") + "/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/clear-cache.py"
+                ]
+                clearProc.running = true
+                root.statusText = "remembered purposes cleared"
+                loadPurposes()
+              }
             }
           }
         }
 
         Keys.onEscapePressed: root.close()
+        Keys.onReturnPressed: root.submit()
+        Keys.onEnterPressed: root.submit()
       }
     }
   }
 
-  // ------------------------------------------------------------ logic
+  // ------------------------------------------------------------ state procs
 
-  // The layer surface maps asynchronously: focus the field once the window
-  // content is live, retrying a few times.
-  Timer {
-    id: focusTimer
-    interval: 120
-    repeat: true
-    running: windowLoader.active
-    onTriggered: {
-      // The item exposes focusInput() (declared in the window component);
-      // it no-ops until the surface has mapped and the field exists.
-      if (windowLoader.item && typeof windowLoader.item.focusInput === "function") {
-        if (windowLoader.item.focusInput()) focusTimer.stop()
+  Process {
+    id: scanProc
+    stdout: StdioCollector { id: scanOut; waitForEnd: true }
+    onExited: function (code) {
+      root.busy = false
+      if (code === 0) {
+        try {
+          var d = JSON.parse(scanOut.text.trim() || "{}")
+          root.statusText = "scanned: " + (d.classified || 0) + " apps classified, "
+            + (d.skipped || 0) + " already known"
+        } catch (e) {}
+        loadPurposes()
+      } else {
+        root.statusText = "scan failed - is the laya server up?"
       }
     }
-  }
-
-  // A wedged classification must not leave the field disabled forever.
-  Timer {
-    id: busyGuard
-    interval: 45000
-    onTriggered: {
-      if (root.busy && !classifyProcRunning()) {
-        root.busy = false
-        root.statusText = "classification timed out - is the laya server up?"
-      }
-    }
-  }
-
-  function classifyProcRunning() {
-    return submitProc.running
-  }
-
-  function submit() {
-    if (submitProc.running) return
-    if (windowLoader.item && typeof windowLoader.item.submitInput === "function")
-      return windowLoader.item.submitInput()
-  }
-
-  // Called from the window component: has access to the field.
-  function doSubmit(text) {
-    if (submitProc.running) return
-    var t = String(text || "").trim()
-    if (t === "") return
-    var home = Quickshell.env("HOME")
-    submitProc.command = [
-      home + "/.local/share/laya/.venv/bin/python",
-      home + "/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/classify.py",
-      "--purpose", t,
-      "--max-apps", "3",
-      "--launch",
-      "--move-existing"
-    ]
-    root.busy = true
-    root.statusText = ""
-    busyGuard.restart()
-    submitProc.running = true
   }
 
   Process {
-    id: relaunchProc
+    id: editProc
     stdout: StdioCollector { waitForEnd: true }
   }
 
@@ -269,8 +251,43 @@ Item {
     }
   }
 
-  // Classification + launch run through the plugin CLI; the result JSON
-  // drives the status line and the window closes itself on success.
+  Process {
+    id: relaunchProc
+    stdout: StdioCollector { waitForEnd: true }
+  }
+
+  // ------------------------------------------------------------ logic
+
+  function submit() {
+    if (submitProc.running) return
+    var text = inputField.text.trim()
+    if (text === "") return
+    var home = Quickshell.env("HOME")
+    submitProc.command = [
+      home + "/.local/share/laya/.venv/bin/python",
+      home + "/.config/omarchy/plugins/cheapseatsecon.laya-workspace/lib/classify.py",
+      "--purpose", text,
+      "--max-apps", "3",
+      "--launch",
+      "--move-existing"
+    ]
+    root.busy = true
+    root.statusText = ""
+    busyGuard.restart()
+    submitProc.running = true
+  }
+
+  Timer {
+    id: busyGuard
+    interval: 45000
+    onTriggered: {
+      if (root.busy) {
+        root.busy = false
+        root.statusText = "classification timed out - is the laya server up?"
+      }
+    }
+  }
+
   Process {
     id: submitProc
     stdout: StdioCollector { id: submitOut; waitForEnd: true }
@@ -283,6 +300,7 @@ Item {
       try {
         var d = JSON.parse(submitOut.text.trim())
         root.statusText = "launched " + (d.apps || []).length + " apps into " + d.workspace
+        loadPurposes()
         Qt.callLater(function () { root.close() })
       } catch (e) {
         root.statusText = "classification failed"

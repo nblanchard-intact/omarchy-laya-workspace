@@ -107,3 +107,20 @@ place; remove them by hand for a full cleanup.
 ## License
 
 MIT
+
+## Scan, classifications, and the learned map
+
+**Scan and classify apps** (in the panel) runs a full pass over your
+installed apps: shipped curated entries and the desktop `Categories=`
+bridge resolve deterministically; anything unknown is classified through
+laya and persisted to the learned map
+(`~/.local/state/laya-workspace/app-buckets.json`) at ≥ 0.6 confidence —
+ambiguous apps are skipped and retried on the next scan instead of being
+pinned wrongly.
+
+**Edit classifications** opens the learned map in your default editor —
+fix a wrong entry by hand, save, and the next scan uses it. Deleting an
+app prunes its entry automatically on the next scan.
+
+The shipped map covers the standard Omarchy app set out of the box, so a
+fresh install needs no scan at all.
